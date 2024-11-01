@@ -8,4 +8,4 @@ Once built, CD into the active directory of the output folder, type the compiled
 
 EXAMPLE -> DMA_PE_Dumper.exe YourTarget.exe
 
-Matching can take up to 15-20 seconds due to the method of obtaining the DTB, which involves bruteforcing the alignment of physical memory pages for potential candidates.
+**VMMDLL_MemRead failed** IS NORMAL DO NOT CLOSE OUT. It just means a DTB match was not found at that physical address. The matching can sometimes take up to a minute due to the method of obtaining the DTB, which involves bruteforcing the alignment of physical memory pages for potential candidates. If I find a better method for updation I will commit it to the repo.
