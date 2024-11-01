@@ -4,6 +4,8 @@ DMA Portable Executable Dumper over a PCIe FPGA device with full support against
 
 You will need to add the following DLLs to the x64 project output folder, -> leechcore.dll, vmm.dll, and FTD3XX.dll.
 
-Once built, CD into the active directory of the output folder, type the compiled EXE name into the command prompt and your target EXE. 
+Once built, CD into the active directory of the output folder, type the compiled EXE name into the command prompt and your target EXE.
 
 EXAMPLE -> DMA_PE_Dumper.exe YourTarget.exe
+
+Matching can take up to 15-20 seconds due to the method of obtaining the DTB, which involves bruteforcing the alignment of physical memory pages for potential candidates.
