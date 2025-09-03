@@ -11,7 +11,7 @@ VOID cbAddFile(_Inout_ HANDLE h, _In_ LPCSTR uszName, _In_ ULONG64 cb, _In_opt_ 
 bool vmmdll_read(uint64_t address, void* buffer, size_t size) {
     if (!VMMDLL_MemRead(hVMM, (DWORD)process_id, (ULONG64)address, (PBYTE)buffer, size)) {
         DWORD error_code = GetLastError();
-        printf("[!] VMMDLL_MemRead failed at address 0x%llX with size %zu (Error: %d)\n", address, size, error_code);
+        printf_red("[!] VMMDLL_MemRead failed at address 0x%llX with size %zu (Error: %d)\n", address, size, error_code);
         return false;
     }
     return true;
@@ -55,8 +55,8 @@ uint32_t get_process_id(const std::string process_name)
     DWORD dwPID;
     bool result = VMMDLL_PidGetFromName(hVMM, const_cast<char*>(process_name.c_str()), &dwPID);
     if (!result) {
-        printf("[!] VMMDLL_PidGetFromName failed (Error: %d)\n", GetLastError());
-        return 0; 
+        printf_red("[!] VMMDLL_PidGetFromName failed (Error: %d)\n", GetLastError());
+        return 0;
     }
     return dwPID;
 }
@@ -74,7 +74,7 @@ bool get_process_base_address(const std::string process_name, const uint32_t& pr
     }
 
     if (!VMMDLL_InitializePlugins(hVMM)) {
-        printf("[-] Failed VMMDLL_InitializePlugins call\n");
+        printf_red("[-] Failed VMMDLL_InitializePlugins call\n");
         return false;
     }
 
@@ -93,10 +93,10 @@ bool get_process_base_address(const std::string process_name, const uint32_t& pr
     VfsFileList.dwVersion = VMMDLL_VFS_FILELIST_VERSION;
     VfsFileList.h = 0;
     VfsFileList.pfnAddDirectory = 0;
-    VfsFileList.pfnAddFile = cbAddFile;  
+    VfsFileList.pfnAddFile = cbAddFile;
     result = VMMDLL_VfsListU(hVMM, (LPSTR)"\\misc\\procinfo\\", &VfsFileList);
     if (!result) {
-        printf("VMMDLL_VfsListU failed: %d\n", GetLastError());
+        printf_red("VMMDLL_VfsListU failed: %d\n", GetLastError());
         return false;
     }
 
@@ -105,19 +105,19 @@ bool get_process_base_address(const std::string process_name, const uint32_t& pr
     DWORD bytesRead = 0;
     auto nt = VMMDLL_VfsReadW(hVMM, (LPWSTR)L"\\misc\\procinfo\\dtb.txt", bytes, buffer_size - 1, &bytesRead, 0);
     if (nt != VMMDLL_STATUS_SUCCESS) {
-        printf("VMMDLL_VfsReadW failed with code %d\n", nt);
+        printf_red("VMMDLL_VfsReadW failed with code %d\n", nt);
         delete[] bytes;
         return false;
     }
 
     std::vector<uint64_t> possibleDTBs;
     char* pLineStart = reinterpret_cast<char*>(bytes);
-    for (size_t i = 0; i < 1000; ++i) { 
+    for (size_t i = 0; i < 1000; ++i) {
         char* pLineEnd = strchr(pLineStart, '\n');
         if (pLineEnd == nullptr)
             break;
 
-        *pLineEnd = '\0';  
+        *pLineEnd = '\0';
 
         Info info = {};
         char format[] = "%X %X %llX %llX %s";
@@ -134,7 +134,7 @@ bool get_process_base_address(const std::string process_name, const uint32_t& pr
 
     delete[] bytes;
 
-    printf("Total DTBs to try: %zu\n", possibleDTBs.size());
+    printf_yellow("Total DTBs to try: %zu\n", possibleDTBs.size());
     for (size_t i = 0; i < possibleDTBs.size(); i++) {
         auto dtb = possibleDTBs[i];
         VMMDLL_ConfigSet(hVMM, VMMDLL_OPT_PROCESS_DTB | process_id, dtb);
@@ -144,18 +144,17 @@ bool get_process_base_address(const std::string process_name, const uint32_t& pr
         if (result) {
             process_base_address = pModuleEntryExplorer->vaBase;
             process_size = pModuleEntryExplorer->cbImageSize;
-            printf("[+] Successfully patched DTB at index %zu with DTB 0x%llX.\n", i, dtb);
+            printf_green("[+] Successfully patched DTB at index %zu with DTB 0x%llX.\n", i, dtb);
             return true;
         }
         else {
-            printf("[!] Failed DTB patch attempt %zu with DTB 0x%llX (Error: %d)\n", i, dtb, GetLastError());
+            printf_red("[!] Failed DTB patch attempt %zu with DTB 0x%llX (Error: %d)\n", i, dtb, GetLastError());
         }
     }
 
-    printf("[-] Unable to patch DTB for access.\n");
+    printf_red("[-] Unable to patch DTB for access.\n");
     return false;
 }
-
 
 bool GetDLLModuleBase(const uint32_t& process_id, const std::string DLL_Name) {
 
@@ -164,7 +163,7 @@ bool GetDLLModuleBase(const uint32_t& process_id, const std::string DLL_Name) {
     bool result = VMMDLL_Map_GetModuleFromNameU(hVMM, process_id, const_cast<char*>(DLL_Name.c_str()), &pModuleEntryExplorer, VMMDLL_MODULE_FLAG_NORMAL);
     if (!result)
     {
-        printf("[!] Failed to get DLL base address for %s (Error: %d)\n", DLL_Name.c_str(), GetLastError());
+        printf_red("[!] Failed to get DLL base address for %s (Error: %d)\n", DLL_Name.c_str(), GetLastError());
         return false;
     }
 
@@ -172,8 +171,3 @@ bool GetDLLModuleBase(const uint32_t& process_id, const std::string DLL_Name) {
     DLL_size = pModuleEntryExplorer->cbImageSize;
     return true;
 }
-
-
-
-
-

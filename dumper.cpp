@@ -2,14 +2,14 @@
 
 bool DumpExe()
 {
-    printf("[>] Dumping...\n");
+    printf_cyan("[>] Dumping executable: %s...\n", process_name.c_str());
 
     if (!process_id ||
         !process_base_address ||
         !process_size
         )
     {
-        printf("[!] Memory is not initialized.\n");
+        printf_red("[!] Memory is not initialized.\n");
         return false;
     }
 
@@ -17,16 +17,16 @@ bool DumpExe()
 
     if (!buffer)
     {
-        printf("[!] Failed to allocate buffer (Error: %d)\n", GetLastError());
+        printf_red("[!] Failed to allocate buffer (Error: %d)\n", GetLastError());
         return false;
     }
 
-    printf("[+] Buffer allocated at 0x%p\n", buffer);
+    printf_green("[+] Buffer allocated at 0x%p\n", buffer);
 
     for (ULONG iterator = 0x0; iterator < process_size; iterator += 0x1000) {
         size_t read_size = ((iterator + 0x1000) > process_size) ? (process_size - iterator) : 0x1000;
         if (!read_buffer(process_base_address + iterator, buffer + iterator, read_size)) {
-            printf("[!] Failed to read buffer at 0x%lX (Error: %d)\n",
+            printf_red("[!] Failed to read buffer at 0x%lX (Error: %d)\n",
                 process_base_address + iterator, GetLastError());
             free(buffer);
             return false;
@@ -37,16 +37,16 @@ bool DumpExe()
 
     if (!pdos_header->e_lfanew)
     {
-        printf("[!] Failed to get dos header from buffer\n");
+        printf_red("[!] Failed to get dos header from buffer\n");
         free(buffer);
         return false;
     }
 
-    printf("[+] Dos header readed: %p\n", pdos_header);
+    printf_green("[+] Dos header readed: %p\n", pdos_header);
 
     if (pdos_header->e_magic != IMAGE_DOS_SIGNATURE)
     {
-        printf("[!] Invalid dos header signature\n");
+        printf_red("[!] Invalid dos header signature\n");
         free(buffer);
         return false;
     }
@@ -55,16 +55,16 @@ bool DumpExe()
 
     if (!pnt_header)
     {
-        printf("[!] Failed to read nt header from buffer\n");
+        printf_red("[!] Failed to read nt header from buffer\n");
         free(buffer);
         return false;
     }
 
-    printf("[+] Nt header readed: 0x%p\n", pnt_header);
+    printf_green("[+] Nt header readed: 0x%p\n", pnt_header);
 
     if (pnt_header->Signature != IMAGE_NT_SIGNATURE)
     {
-        printf("[!] Invalid nt header signature from readed nt header\n");
+        printf_red("[!] Invalid nt header signature from readed nt header\n");
         free(buffer);
         return false;
     }
@@ -73,12 +73,12 @@ bool DumpExe()
 
     if (!poptional_header)
     {
-        printf("[!] Failed to read optional header from buffer\n");
+        printf_red("[!] Failed to read optional header from buffer\n");
         free(buffer);
         return false;
     }
 
-    printf("[+] Optional header readed: 0x%p\n", poptional_header);
+    printf_green("[+] Optional header readed: 0x%p\n", poptional_header);
 
     int i = 0;
     unsigned int section_offset = poptional_header->SizeOfHeaders;
@@ -100,20 +100,25 @@ bool DumpExe()
             section_size
         ))
         {
-            printf("[!] Failed to read buffer for section %s\n", psection_header->Name);
+            printf_red("[!] Failed to read buffer for section %s\n", psection_header->Name);
             free(buffer);
             return false;
         }
     }
 
     char FileName[MAX_PATH];
-    sprintf_s(FileName, "%s%s_dump.exe", get_path().c_str(), process_name.c_str());
+    std::string process_name_without_ext = process_name;
+    size_t pos = process_name_without_ext.find_last_of(".");
+    if (pos != std::string::npos) {
+        process_name_without_ext = process_name_without_ext.substr(0, pos);
+    }
+    sprintf_s(FileName, "%s%s_Dump.exe", get_path().c_str(), process_name_without_ext.c_str());
 
     std::ofstream Dump(FileName, std::ios::binary);
     Dump.write((char*)buffer, process_size);
     Dump.close();
 
-    printf("[>] Dumped successfully to %s\n", FileName);
+    printf_green("[>] Executable dumped successfully to %s\n", FileName);
     free(buffer);
 
     return true;
@@ -122,14 +127,14 @@ bool DumpExe()
 bool DumpDLL() {
 
     {
-        printf("[>] Dumping...\n");
+        printf_cyan("[>] Dumping DLL: %s...\n", DLL_Name.c_str());
 
         if (!process_id ||
             !DLL_base_address ||
             !DLL_size
             )
         {
-            printf("[!] Memory is not initialized.\n");
+            printf_red("[!] Memory is not initialized.\n");
             return false;
         }
 
@@ -137,16 +142,16 @@ bool DumpDLL() {
 
         if (!buffer)
         {
-            printf("[!] Failed to allocate buffer (Error: %d)\n", GetLastError());
+            printf_red("[!] Failed to allocate buffer (Error: %d)\n", GetLastError());
             return false;
         }
 
-        printf("[+] Buffer allocated at 0x%p\n", buffer);
+        printf_green("[+] Buffer allocated at 0x%p\n", buffer);
 
         for (ULONG iterator = 0x0; iterator < DLL_size; iterator += 0x1000) {
             size_t read_size = ((iterator + 0x1000) > DLL_size) ? (DLL_size - iterator) : 0x1000;
             if (!read_buffer(DLL_base_address + iterator, buffer + iterator, read_size)) {
-                printf("[!] Failed to read buffer at 0x%lX (Error: %d)\n",
+                printf_red("[!] Failed to read buffer at 0x%lX (Error: %d)\n",
                     DLL_base_address + iterator, GetLastError());
                 free(buffer);
                 return false;
@@ -157,16 +162,16 @@ bool DumpDLL() {
 
         if (!pdos_header->e_lfanew)
         {
-            printf("[!] Failed to get dos header from buffer\n");
+            printf_red("[!] Failed to get dos header from buffer\n");
             free(buffer);
             return false;
         }
 
-        printf("[+] Dos header readed: %p\n", pdos_header);
+        printf_green("[+] Dos header readed: %p\n", pdos_header);
 
         if (pdos_header->e_magic != IMAGE_DOS_SIGNATURE)
         {
-            printf("[!] Invalid dos header signature\n");
+            printf_red("[!] Invalid dos header signature\n");
             free(buffer);
             return false;
         }
@@ -175,16 +180,16 @@ bool DumpDLL() {
 
         if (!pnt_header)
         {
-            printf("[!] Failed to read nt header from buffer\n");
+            printf_red("[!] Failed to read nt header from buffer\n");
             free(buffer);
             return false;
         }
 
-        printf("[+] Nt header readed: 0x%p\n", pnt_header);
+        printf_green("[+] Nt header readed: 0x%p\n", pnt_header);
 
         if (pnt_header->Signature != IMAGE_NT_SIGNATURE)
         {
-            printf("[!] Invalid nt header signature from readed nt header\n");
+            printf_red("[!] Invalid nt header signature from readed nt header\n");
             free(buffer);
             return false;
         }
@@ -193,12 +198,12 @@ bool DumpDLL() {
 
         if (!poptional_header)
         {
-            printf("[!] Failed to read optional header from buffer\n");
+            printf_red("[!] Failed to read optional header from buffer\n");
             free(buffer);
             return false;
         }
 
-        printf("[+] Optional header readed: 0x%p\n", poptional_header);
+        printf_green("[+] Optional header readed: 0x%p\n", poptional_header);
 
         int i = 0;
         unsigned int section_offset = poptional_header->SizeOfHeaders;
@@ -220,20 +225,25 @@ bool DumpDLL() {
                 section_size
             ))
             {
-                printf("[!] Failed to read buffer for section %s\n", psection_header->Name);
+                printf_red("[!] Failed to read buffer for section %s\n", psection_header->Name);
                 free(buffer);
                 return false;
             }
         }
 
         char FileName[MAX_PATH];
-        sprintf_s(FileName, "%s%s_dump.dll", get_path().c_str(), DLL_Name.c_str());
+        std::string dll_name_without_ext = DLL_Name;
+        size_t pos = dll_name_without_ext.find_last_of(".");
+        if (pos != std::string::npos) {
+            dll_name_without_ext = dll_name_without_ext.substr(0, pos);
+        }
+        sprintf_s(FileName, "%s%s_Dump.dll", get_path().c_str(), dll_name_without_ext.c_str());
 
         std::ofstream Dump(FileName, std::ios::binary);
         Dump.write((char*)buffer, DLL_size);
         Dump.close();
 
-        printf("[>] Dumped successfully to %s\n", FileName);
+        printf_green("[>] DLL dumped successfully to %s\n", FileName);
         free(buffer);
 
         return true;
