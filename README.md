@@ -8,4 +8,4 @@ DMA_PE_Dumper Guide:
    - If you see `VMMDLL_MemRead failed`, it’s normal. It might take up to a minute—just let it finish.
    - Note: This tool uses a PCIe FPGA device and supports CR3 shuffling. The `VMMDLL_MemRead failed` error means a DTB match wasn’t found, and the tool will bruteforce memory pages for up to a minute to find it.
 
-![PEdumper](https://github.com/user-attachments/assets/f6488bf3-64f2-4fe8-b30d-9dc8af2b46a9)
+![PEdumper](<img width="1221" height="824" alt="image" src="https://github.com/user-attachments/assets/d46b8870-908c-46be-ab0a-9b047c8ed32d" />)
