@@ -1,0 +1,54 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# C++ build OUTPUT directories
+/x64/
+/x86/
+/Debug/
+/Release/
+
+# Binary files
+
+# Visual Studio USER files (personal settings)
+/.vs/
+*.user
+*.userosscache
+*.sln.docstates
+
+#CMake user files
+*.CMakeLists.txt.user 
+
+# C++ build intermediate files
+*.recipe
+*.vcxproj.FileListAbsolute.txt
+*.iobj
+*.ipdb
+*.obj
+*.pdb
+*.ilk
+*.tlb
+*.tlh
+*.tlog
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.log
+*.idb
+*.pgc
+*.pgd
+*.rsp
+*.cache
+*.opt
+*.plg
+*.ncb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
