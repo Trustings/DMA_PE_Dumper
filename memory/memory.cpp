@@ -175,6 +175,87 @@ bool Initialize(const std::string process_name_)
     return true;
 }
 
+bool FixCr3_1()
+{
+    PVMMDLL_MAP_MODULEENTRY module_entry;
+    bool result = VMMDLL_Map_GetModuleFromNameU(hVMM, process_id, (LPSTR)process_name.c_str(), &module_entry, NULL);
+    if (result)
+        return true; //Doesn't need to be patched lol
+
+    if (!VMMDLL_InitializePlugins(hVMM))
+    {
+        ERROR("[-] Failed VMMDLL_InitializePlugins call");
+        return false;
+    }
+
+    //have to sleep a little or we try reading the file before the plugin initializes fully
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    while (true)
+    {
+        BYTE bytes[4] = { 0 };
+        DWORD i = 0;
+        auto nt = VMMDLL_VfsReadW(hVMM, (LPWSTR)L"\\misc\\procinfo\\progress_percent.txt", bytes, 3, &i, 0);
+        if (nt == VMMDLL_STATUS_SUCCESS && atoi((LPSTR)bytes) == 100)
+            break;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    VMMDLL_VFS_FILELIST2 VfsFileList;
+    VfsFileList.dwVersion = VMMDLL_VFS_FILELIST_VERSION;
+    VfsFileList.h = 0;
+    VfsFileList.pfnAddDirectory = 0;
+    VfsFileList.pfnAddFile = cbAddFile; //dumb af callback who made this system
+
+    result = VMMDLL_VfsListU(hVMM, (LPSTR)"\\misc\\procinfo\\", &VfsFileList);
+    if (!result)
+        return false;
+
+    //read the data from the txt and parse it
+    const size_t buffer_size = cbSize;
+    std::unique_ptr<BYTE[]> bytes(new BYTE[buffer_size]);
+    DWORD j = 0;
+    auto nt = VMMDLL_VfsReadW(hVMM, (LPWSTR)L"\\misc\\procinfo\\dtb.txt", bytes.get(), buffer_size - 1, &j, 0);
+    if (nt != VMMDLL_STATUS_SUCCESS)
+        return false;
+
+    std::vector<uint64_t> possible_dtbs;
+    std::string lines(reinterpret_cast<char*>(bytes.get()));
+    std::istringstream iss(lines);
+    std::string line;
+
+    while (std::getline(iss, line))
+    {
+        Info info = { };
+
+        std::istringstream info_ss(line);
+        if (info_ss >> std::hex >> info.index >> std::dec >> info.process_id >> std::hex >> info.dtb >> info.kernelAddr >> info.name)
+        {
+            if (info.process_id == 0) //parts that lack a name or have a NULL pid are suspects
+                possible_dtbs.push_back(info.dtb);
+            if (process_name.find(info.name) != std::string::npos)
+                possible_dtbs.push_back(info.dtb);
+        }
+    }
+
+    //loop over possible dtbs and set the config to use it til we find the correct one
+    for (size_t i = 0; i < possible_dtbs.size(); i++)
+    {
+        auto dtb = possible_dtbs[i];
+        VMMDLL_ConfigSet(hVMM, VMMDLL_OPT_PROCESS_DTB | process_id, dtb);
+        result = VMMDLL_Map_GetModuleFromNameU(hVMM, process_id, (LPSTR)process_name.c_str(), &module_entry, NULL);
+        if (result)
+        {
+            printf("Patched DTB");
+            return true;
+        }
+    }
+
+    ERROR("[-] Failed to patch module");
+    return false;
+}
+
 bool InitializeDLL(const std::string process_name, const std::string DLL_Name)
 {
 
@@ -574,87 +655,6 @@ bool FixCr3_1()
     return false;
 } 
 #endif
-
-bool FixCr3_1()
-{
-    PVMMDLL_MAP_MODULEENTRY module_entry;
-    bool result = VMMDLL_Map_GetModuleFromNameU(hVMM, process_id, (LPSTR)process_name.c_str(), &module_entry, NULL);
-    if (result)
-        return true; //Doesn't need to be patched lol
-
-    if (!VMMDLL_InitializePlugins(hVMM))
-    {
-        ERROR("[-] Failed VMMDLL_InitializePlugins call");
-        return false;
-    }
-
-    //have to sleep a little or we try reading the file before the plugin initializes fully
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-    while (true)
-    {
-        BYTE bytes[4] = { 0 };
-        DWORD i = 0;
-        auto nt = VMMDLL_VfsReadW(hVMM, (LPWSTR)L"\\misc\\procinfo\\progress_percent.txt", bytes, 3, &i, 0);
-        if (nt == VMMDLL_STATUS_SUCCESS && atoi((LPSTR)bytes) == 100)
-            break;
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-
-    VMMDLL_VFS_FILELIST2 VfsFileList;
-    VfsFileList.dwVersion = VMMDLL_VFS_FILELIST_VERSION;
-    VfsFileList.h = 0;
-    VfsFileList.pfnAddDirectory = 0;
-    VfsFileList.pfnAddFile = cbAddFile; //dumb af callback who made this system
-
-    result = VMMDLL_VfsListU(hVMM, (LPSTR)"\\misc\\procinfo\\", &VfsFileList);
-    if (!result)
-        return false;
-
-    //read the data from the txt and parse it
-    const size_t buffer_size = cbSize;
-    std::unique_ptr<BYTE[]> bytes(new BYTE[buffer_size]);
-    DWORD j = 0;
-    auto nt = VMMDLL_VfsReadW(hVMM, (LPWSTR)L"\\misc\\procinfo\\dtb.txt", bytes.get(), buffer_size - 1, &j, 0);
-    if (nt != VMMDLL_STATUS_SUCCESS)
-        return false;
-
-    std::vector<uint64_t> possible_dtbs;
-    std::string lines(reinterpret_cast<char*>(bytes.get()));
-    std::istringstream iss(lines);
-    std::string line;
-
-    while (std::getline(iss, line))
-    {
-        Info info = { };
-
-        std::istringstream info_ss(line);
-        if (info_ss >> std::hex >> info.index >> std::dec >> info.process_id >> std::hex >> info.dtb >> info.kernelAddr >> info.name)
-        {
-            if (info.process_id == 0) //parts that lack a name or have a NULL pid are suspects
-                possible_dtbs.push_back(info.dtb);
-            if (process_name.find(info.name) != std::string::npos)
-                possible_dtbs.push_back(info.dtb);
-        }
-    }
-
-    //loop over possible dtbs and set the config to use it til we find the correct one
-    for (size_t i = 0; i < possible_dtbs.size(); i++)
-    {
-        auto dtb = possible_dtbs[i];
-        VMMDLL_ConfigSet(hVMM, VMMDLL_OPT_PROCESS_DTB | process_id, dtb);
-        result = VMMDLL_Map_GetModuleFromNameU(hVMM, process_id, (LPSTR)process_name.c_str(), &module_entry, NULL);
-        if (result)
-        {
-            printf("Patched DTB");
-            return true;
-        }
-    }
-
-    ERROR("[-] Failed to patch module");
-    return false;
-}
 
 bool get_process_base_address(const std::string process_name, const uint32_t& process_id)
 {
