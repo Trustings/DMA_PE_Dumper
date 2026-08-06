@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="DMA-PE-Dumper.vcxproj" />
+  <Project Path="DMA-PE-Dumper.vcxproj" Id="4f2ea585-9e4f-4ac5-ac1a-f31eb21ce7fc" />
 </Solution>
