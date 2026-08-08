@@ -327,10 +327,19 @@ extern ULONG64 process_base_address;
 extern ULONG64 DLL_base_address;
 extern DWORD process_size;
 extern DWORD DLL_size;
+extern std::string driver_name;
+extern ULONG64 driver_base_address;
+extern DWORD driver_size;
 
-bool Initialize(const std::string process_name);
+bool Initialize();
+
+bool Initialize_with_exe(const std::string process_name);
 
 bool InitializeDLL(const std::string process_name, const std::string DLL_Name);
+
+bool InitializeDriver(const std::string driver_name);
+
+bool DumpDriver();
 
 VOID cbAddFile(_Inout_ HANDLE h, _In_ LPCSTR uszName, _In_ ULONG64 cb, _In_opt_ PVMMDLL_VFS_FILELIST_EXINFO pExInfo);
 

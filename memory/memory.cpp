@@ -21,6 +21,9 @@ ULONG64 process_base_address = 0;
 ULONG64 DLL_base_address = 0;
 DWORD process_size = 0;
 DWORD DLL_size = 0;
+std::string driver_name;
+ULONG64 driver_base_address = 0;
+DWORD driver_size = 0;
 
 uint64_t cbSize = 0x80000;
 
@@ -52,7 +55,41 @@ std::vector<pid_t> getPidsByName(const std::string& processName) {
     return pids;
 }
 
-bool Initialize(const std::string process_name_)
+bool Initialize()
+{
+
+    auto pids = getPidsByName("qemu-system-x86");
+    pid_t pid = pids[0];
+
+    // if (!pids.empty()){
+
+    //-mount /mnt/memproc -v
+
+    // continue;
+
+    // std::cout << "PID: " << pid << std::endl;
+    //}
+    std::string url = "qemu://hugepage-pid=" + std::to_string(pid) + ",qmp=/tmp/qmp-win10.sock";
+
+    // std::cout << url << std::endl;
+
+    LPCSTR Parameters[] = {"", "-device", url.c_str(), "-mount", "/mnt/memproc", "-v", NULL};
+
+    hVMM = VMMDLL_Initialize(6, Parameters);
+    DWORD error_code;
+
+    if (!hVMM) {
+        printf("[!] Failed to initialize memory process file system in call to vmm.dll!VMMDLL_Initialize (Error: %d)\n", error_code);
+        return false;
+    }
+
+    printf("[>] Init handle VMM success\n");
+
+    return true;
+
+}
+
+bool Initialize_with_exe(const std::string process_name_)
 {
 
 	process_name = process_name_;
@@ -130,6 +167,389 @@ bool InitializeDLL(const std::string process_name, const std::string DLL_Name)
 
     return true;
 
+}
+
+bool InitializeDriver(const std::string driver_name)
+{
+    printf("[+] Looking for driver: %s\n", driver_name.c_str());
+
+    // Try multiple PIDs that might have access to kernel drivers
+    DWORD pids_to_try[] = {4, get_process_id("winlogon.exe"), get_process_id("csrss.exe")};
+
+    PVMMDLL_MAP_MODULEENTRY pModuleEntryExplorer = NULL;
+    bool found = false;
+
+    // First, get the module info using PID 4 (System)
+    if (VMMDLL_Map_GetModuleFromNameU(hVMM, 4, const_cast<char*>(driver_name.c_str()), &pModuleEntryExplorer, VMMDLL_MODULE_FLAG_NORMAL)) {
+        driver_base_address = pModuleEntryExplorer->vaBase;
+        driver_size = pModuleEntryExplorer->cbImageSize;
+        printf("[+] Driver found: Base=0x%llX, Size=0x%X\n", driver_base_address, driver_size);
+        found = true;
+        VMMDLL_MemFree(pModuleEntryExplorer);
+    } else {
+        printf("[!] Failed to find driver with PID 4\n");
+        return false;
+    }
+
+    if (!found) return false;
+
+    // Try to read through different processes
+    for (DWORD pid : pids_to_try) {
+        if (pid == 0) continue;
+
+        printf("[>] Trying to read through PID %d...\n", pid);
+
+        std::vector<uint8_t> header(4);
+        DWORD bytes_read = 0;
+
+        if (VMMDLL_MemReadEx(hVMM, pid, driver_base_address, header.data(), 4, &bytes_read,
+                             VMMDLL_FLAG_NOCACHE)) {
+            if (bytes_read == 4) {
+                printf("[+] Read success through PID %d: %02X %02X %02X %02X\n",
+                       pid, header[0], header[1], header[2], header[3]);
+
+                if (header[0] == 0x4D && header[1] == 0x5A) {
+                    printf("[+] Driver verified with MZ header!\n");
+                    return true;
+                }
+            } else {
+                printf("[!] Partial read through PID %d: %d bytes\n", pid, bytes_read);
+            }
+        } else {
+            printf("[!] Read failed through PID %d\n", pid);
+        }
+    }
+
+    // If normal reads fail, try with VMMDLL_FLAG_FORCECACHE_READ
+    printf("[>] Trying with FORCECACHE flag...\n");
+    std::vector<uint8_t> header(4);
+    DWORD bytes_read = 0;
+
+    if (VMMDLL_MemReadEx(hVMM, 4, driver_base_address, header.data(), 4, &bytes_read,
+                         VMMDLL_FLAG_FORCECACHE_READ | VMMDLL_FLAG_NOCACHEPUT)) {
+        if (bytes_read == 4 && header[0] == 0x4D && header[1] == 0x5A) {
+            printf("[+] Driver verified with FORCECACHE flag!\n");
+            return true;
+        }
+    }
+
+    // If we still can't read, but we have the address and size, let's still try to dump
+    printf("[!] Warning: Cannot verify driver header, but continuing with dump attempt...\n");
+    printf("[+] Driver base address: 0x%llX\n", driver_base_address);
+    printf("[+] Driver image size: 0x%X (%llu KB)\n", driver_size, driver_size / 1024);
+
+    return true;  // Return true anyway to attempt dump
+}
+
+bool DumpDriver()
+{
+    printf("[>] Creating kernel driver dump...\n");
+
+    if (!hVMM || !driver_base_address || !driver_size)
+    {
+        printf("[!] Driver information is not initialized.\n");
+        return false;
+    }
+
+    printf("[>] Reading 0x%X bytes from 0x%llX (PID 4 - System process)...\n",
+           driver_size, driver_base_address);
+
+    std::vector<uint8_t> memory_buffer(driver_size, 0);
+    DWORD total_read = 0;
+    DWORD failed_reads = 0;
+
+    // Use PID 4 (System process) for kernel drivers
+    DWORD dwSystemPID = 4;
+
+    for (DWORD offset = 0; offset < driver_size; offset += 0x1000)
+    {
+        DWORD to_read = (0x1000UL < (driver_size - offset)) ? 0x1000UL : (driver_size - offset);
+        DWORD chunk_read = 0;
+
+        if (!VMMDLL_MemReadEx(hVMM, dwSystemPID, driver_base_address + offset,
+                              memory_buffer.data() + offset, to_read, &chunk_read,
+                              VMMDLL_FLAG_NOCACHE | VMMDLL_FLAG_ZEROPAD_ON_FAIL))
+        {
+            printf("[!] Failed to read at offset 0x%X\n", offset);
+            failed_reads++;
+        }
+        total_read += chunk_read;
+
+        // Show progress
+        if (offset % 0x10000 == 0 && offset > 0)
+        {
+            printf("[>] Progress: 0x%X/0x%X bytes\n", offset, driver_size);
+        }
+    }
+
+    printf("[+] Read 0x%X of 0x%X bytes (%d failed pages)\n",
+           total_read, driver_size, failed_reads);
+
+    if (failed_reads > 10)
+    {
+        printf("[!] Warning: Many read failures, driver image may be incomplete\n");
+    }
+
+    PIMAGE_DOS_HEADER pdos_header = (PIMAGE_DOS_HEADER)memory_buffer.data();
+
+    // Debug first few bytes
+    printf("[+] First 16 bytes: ");
+    for (int i = 0; i < 16; i++) {
+        printf("%02X ", memory_buffer[i]);
+    }
+    printf("\n");
+
+    if (pdos_header->e_magic != IMAGE_DOS_SIGNATURE)
+    {
+        printf("[!] Invalid DOS header (not MZ: 0x%04X)\n", pdos_header->e_magic);
+        return false;
+    }
+
+    printf("[+] DOS header valid (MZ)\n");
+    printf("[+] e_lfanew: 0x%X\n", pdos_header->e_lfanew);
+
+    if (pdos_header->e_lfanew + sizeof(DWORD) > total_read)
+    {
+        printf("[!] e_lfanew (0x%X) out of bounds (buffer: 0x%X)\n",
+               pdos_header->e_lfanew, total_read);
+        return false;
+    }
+
+    PIMAGE_NT_HEADERS_UNION pnt_union = (PIMAGE_NT_HEADERS_UNION)(memory_buffer.data() + pdos_header->e_lfanew);
+
+    if (pnt_union->Signature != IMAGE_NT_SIGNATURE)
+    {
+        printf("[!] Invalid PE signature: 0x%08X\n", pnt_union->Signature);
+        printf("[!] Bytes at e_lfanew: ");
+        for (int i = 0; i < 8; i++) {
+            printf("%02X ", memory_buffer[pdos_header->e_lfanew + i]);
+        }
+        printf("\n");
+        return false;
+    }
+
+    printf("[+] PE signature valid\n");
+    printf("[+] Number of sections: %d\n", pnt_union->Common.FileHeader.NumberOfSections);
+
+    BYTE* optional_header_ptr = (BYTE*)&pnt_union->Common.FileHeader + sizeof(IMAGE_FILE_HEADER);
+    PIMAGE_OPTIONAL_HEADER_UNION popt_union = (PIMAGE_OPTIONAL_HEADER_UNION)optional_header_ptr;
+
+    // Check magic properly
+    WORD magic = popt_union->OptionalHeader32.Magic;
+    bool is_64bit = (magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC);
+    bool is_32bit = (magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC);
+
+    printf("[+] Architecture: ");
+    if (is_64bit) printf("64-bit (kernel driver)\n");
+    else if (is_32bit) printf("32-bit (kernel driver)\n");
+    else printf("Unknown (magic: 0x%04X)\n", magic);
+
+    WORD number_of_sections = pnt_union->Common.FileHeader.NumberOfSections;
+
+    DWORD size_of_headers = 0;
+    DWORD size_of_image = 0;
+    DWORD file_alignment = 0x200;
+    DWORD section_alignment = 0x1000;
+    ULONGLONG image_base = 0;
+
+    if (is_64bit)
+    {
+        size_of_headers = popt_union->OptionalHeader64.SizeOfHeaders;
+        size_of_image = popt_union->OptionalHeader64.SizeOfImage;
+        file_alignment = popt_union->OptionalHeader64.FileAlignment;
+        section_alignment = popt_union->OptionalHeader64.SectionAlignment;
+        image_base = popt_union->OptionalHeader64.ImageBase;
+    }
+    else if (is_32bit)
+    {
+        size_of_headers = popt_union->OptionalHeader32.SizeOfHeaders;
+        size_of_image = popt_union->OptionalHeader32.SizeOfImage;
+        file_alignment = popt_union->OptionalHeader32.FileAlignment;
+        section_alignment = popt_union->OptionalHeader32.SectionAlignment;
+        image_base = popt_union->OptionalHeader32.ImageBase;
+    }
+
+    printf("[+] Original SizeOfImage: 0x%X\n", size_of_image);
+    printf("[+] SizeOfHeaders: 0x%X\n", size_of_headers);
+    printf("[+] ImageBase: 0x%llX\n", image_base);
+    printf("[+] Driver loaded at: 0x%llX\n", driver_base_address);
+    printf("[+] Delta (relocation): 0x%llX\n", driver_base_address - image_base);
+
+    if (file_alignment == 0) file_alignment = 0x200;
+    if (section_alignment == 0) section_alignment = 0x1000;
+
+    PIMAGE_SECTION_HEADER first_section = IMAGE_FIRST_SECTION_UNION(pnt_union);
+
+    printf("[+] Fixing section headers for file layout...\n");
+
+    // First, ensure we have enough space for headers
+    DWORD current_file_offset = size_of_headers;
+
+    // Align to file alignment
+    current_file_offset = (current_file_offset + file_alignment - 1) & ~(file_alignment - 1);
+
+    for (WORD i = 0; i < number_of_sections; i++)
+    {
+        PIMAGE_SECTION_HEADER section = &first_section[i];
+
+        printf("[+] Section %d: ", i + 1);
+        // Print section name
+        for (int j = 0; j < 8 && section->Name[j] != 0; j++) {
+            printf("%c", section->Name[j]);
+        }
+        printf("\n");
+
+        printf("    VirtualAddress:   0x%08X\n", section->VirtualAddress);
+        printf("    VirtualSize:      0x%08X\n", section->Misc.VirtualSize);
+
+        // Calculate raw size based on virtual size, aligned to file alignment
+        DWORD raw_size = section->Misc.VirtualSize;
+        raw_size = (raw_size + file_alignment - 1) & ~(file_alignment - 1);
+
+        printf("    SizeOfRawData:    0x%08X", section->SizeOfRawData);
+        section->SizeOfRawData = raw_size;
+        printf(" -> 0x%08X\n", section->SizeOfRawData);
+
+        printf("    PointerToRawData: 0x%08X", section->PointerToRawData);
+        section->PointerToRawData = current_file_offset;
+        printf(" -> 0x%08X\n", section->PointerToRawData);
+
+        current_file_offset += section->SizeOfRawData;
+    }
+
+    // Update SizeOfImage to match the actual loaded size
+    if (is_64bit)
+    {
+        popt_union->OptionalHeader64.SizeOfImage = driver_size;
+        popt_union->OptionalHeader64.CheckSum = 0;
+        popt_union->OptionalHeader64.ImageBase = driver_base_address;
+    }
+    else if (is_32bit)
+    {
+        popt_union->OptionalHeader32.SizeOfImage = driver_size;
+        popt_union->OptionalHeader32.CheckSum = 0;
+        popt_union->OptionalHeader32.ImageBase = (DWORD)driver_base_address;
+    }
+
+    printf("[+] Updated SizeOfImage: 0x%X -> 0x%X\n", size_of_image, driver_size);
+    printf("[+] Updated ImageBase to match loaded address\n");
+
+    char filename[256];
+    const char* arch_suffix = is_64bit ? "x64" : "x86";
+
+    // Extract driver name from full path if needed
+    std::string base_name = driver_name;
+    size_t last_slash = base_name.find_last_of("\\/");
+    if (last_slash != std::string::npos) {
+        base_name = base_name.substr(last_slash + 1);
+    }
+
+    // Remove .sys extension if present
+    size_t dot_pos = base_name.find_last_of(".");
+    if (dot_pos != std::string::npos) {
+        base_name = base_name.substr(0, dot_pos);
+    }
+
+    snprintf(filename, sizeof(filename), "%s_%s_reconstructed.sys",
+             base_name.c_str(), arch_suffix);
+
+    printf("\n[>] Saving reconstructed driver to %s...\n", filename);
+
+    // Create the file with proper section layout
+    FILE* file = fopen(filename, "wb");
+    if (!file)
+    {
+        printf("[!] Failed to create file\n");
+        return false;
+    }
+
+    // Write headers
+    size_t headers_written = fwrite(memory_buffer.data(), 1, size_of_headers, file);
+    printf("[+] Headers written: 0x%zX bytes\n", headers_written);
+
+    // Write sections at their new file offsets
+    for (WORD i = 0; i < number_of_sections; i++)
+    {
+        PIMAGE_SECTION_HEADER section = &first_section[i];
+
+        // Seek to the section's file offset
+        fseek(file, section->PointerToRawData, SEEK_SET);
+
+        // Write section data from memory
+        size_t section_written = fwrite(
+            memory_buffer.data() + section->VirtualAddress,
+            1,
+            section->SizeOfRawData,
+            file
+            );
+
+        printf("[+] Section %d written: 0x%zX bytes at offset 0x%X\n",
+               i + 1, section_written, section->PointerToRawData);
+    }
+
+    fclose(file);
+
+    printf("[+] Saved reconstructed driver: %s\n", filename);
+    printf("    Total size: %llu bytes\n", current_file_offset);
+
+    printf("\n[>] Verifying reconstructed driver...\n");
+
+    // Verify the reconstructed driver
+    FILE* verify = fopen(filename, "rb");
+    if (verify)
+    {
+        IMAGE_DOS_HEADER verify_dos;
+        size_t bytes_read = fread(&verify_dos, 1, sizeof(verify_dos), verify);
+
+        if (bytes_read >= sizeof(IMAGE_DOS_HEADER) && verify_dos.e_magic == IMAGE_DOS_SIGNATURE)
+        {
+            printf("[+] DOS header: OK\n");
+
+            fseek(verify, verify_dos.e_lfanew, SEEK_SET);
+            DWORD verify_pe;
+            fread(&verify_pe, 1, sizeof(verify_pe), verify);
+
+            if (verify_pe == IMAGE_NT_SIGNATURE)
+            {
+                printf("[+] PE signature: OK\n");
+                printf("[+] Driver reconstruction appears valid!\n");
+
+                // Check if it's a kernel driver (should have subsystem 1)
+                fseek(verify, verify_dos.e_lfanew + 0x5C, SEEK_SET); // Subsystem offset
+                WORD subsystem;
+                fread(&subsystem, 1, sizeof(subsystem), verify);
+                printf("[+] Subsystem: %d ", subsystem);
+                if (subsystem == 1) {
+                    printf("(Native - kernel driver)\n");
+                } else {
+                    printf("(WARNING: Not a kernel driver subsystem)\n");
+                }
+            }
+            else
+            {
+                printf("[!] PE signature invalid\n");
+            }
+        }
+        else
+        {
+            printf("[!] DOS header invalid\n");
+        }
+        fclose(verify);
+    }
+    else
+    {
+        printf("[!] Could not open file for verification\n");
+    }
+
+    printf("\n[+] DRIVER DUMP COMPLETE\n");
+    printf("    File: %s\n", filename);
+    printf("    Size: %llu bytes (reconstructed driver)\n", current_file_offset);
+    printf("    Load Address: 0x%llX\n", driver_base_address);
+    printf("    ImageBase in PE: 0x%llX\n", image_base);
+    printf("    Note: This driver has been reconstructed from memory\n");
+    printf("    Note: Relocations may need to be fixed for offline analysis\n");
+
+    return true;
 }
 
 #endif
