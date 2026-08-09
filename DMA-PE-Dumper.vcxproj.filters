@@ -18,7 +18,6 @@
     <ClInclude Include="memory\memory.hpp">
       <Filter>memory</Filter>
     </ClInclude>
-    <ClInclude Include="headers.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="memory\memory.cpp">
