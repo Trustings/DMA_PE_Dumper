@@ -17,8 +17,9 @@ cd build
 cmake ../
 make
 ```
-Please note: To have this run successfully on your Linux machine you must configure your backend as such. https://github.com/ufrisk/LeechCore/wiki/Device_QEMU
+Download the linux project binaries at https://github.com/Trustings/DMA_PE_Dumper/releases/tag/v1.1.0 and have them extracted to your working build directory
 
+Please note: To have this run successfully on your Linux machine you must configure your backend as such. https://github.com/ufrisk/LeechCore/wiki/Device_QEMU 
 
 # Examples:
 
