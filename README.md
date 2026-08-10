@@ -10,7 +10,6 @@ Currently supports the dumping of both x86 and x64 system drivers, native execut
 
 # Linux
 
-While in the root project directory...
 ```
 git clone --recursive https://github.com/Trustings/DMA_PE_Dumper.git
 mkdir build
