@@ -6,8 +6,6 @@ Currently supports the dumping of both x86 and x64 system drivers, native execut
 
 <img width="1920" height="1080" alt="Screenshot From 2026-08-10 02-50-00" src="https://github.com/user-attachments/assets/1eb24488-a800-491c-80e8-3a43707518d0" />
 
-<img width="1920" height="1080" alt="Screenshot From 2026-08-10 02-57-42" src="https://github.com/user-attachments/assets/eb44953c-a37f-4baf-b5e3-a0469d4c33c1" />
-
 # Building:
 
 # Linux
