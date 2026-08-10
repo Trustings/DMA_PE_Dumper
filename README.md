@@ -21,6 +21,18 @@ Download the linux project binaries at https://github.com/Trustings/DMA_PE_Dumpe
 
 Please note: To have this run successfully on your Linux machine you must configure your backend as such. https://github.com/ufrisk/LeechCore/wiki/Device_QEMU 
 
+# Windows 
+
+```
+git clone --recursive https://github.com/Trustings/DMA_PE_Dumper.git
+```
+After cloning or downloading the repository, open the visual studio solution file (.slnx) and compile as x64 Release.
+
+Download the Windows project binaries at https://github.com/Trustings/DMA_PE_Dumper/releases/tag/v1.1.0 and have them extracted to your working build directory
+
+Please note: To have this run successfully on your Windows machine you must have first met these requirements at https://github.com/ufrisk/LeechCore/wiki/Device_FPGA and at https://github.com/ufrisk/MemProcFS
+
+
 # Examples:
 
 Once built, cd into the working build directory, input the name of either a system driver, a target exe, or a target exe with an associative dll.
