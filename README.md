@@ -17,7 +17,7 @@ cd build
 cmake ../
 make
 ```
-
+Please note: To have this run successfully on your Linux machine you must configure your backend as such. https://github.com/ufrisk/LeechCore/wiki/Device_QEMU
 
 
 # Examples:
