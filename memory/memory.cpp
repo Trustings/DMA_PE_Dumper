@@ -1211,7 +1211,7 @@ static void force_unmount(const std::string& mountPoint = "/mnt/memproc") {
     std::string killCmd = "pkill -f 'memprocfs.*" + mountPoint + "' 2>/dev/null";
     system(killCmd.c_str());
 
-    std::cout << "Attempted to clean up " << mountPoint << std::endl;
+    std::cout << "[+] Attempted to clean up " << mountPoint << std::endl;
 }
 
 // Kill any existing memprocfs processes
@@ -1242,11 +1242,11 @@ static bool init_memprocfs(const std::string& qmpSocket = "/tmp/qmp-win10-1.sock
     }
 
     pid_t qemuPid = pids[0];
-    std::cout << "Found QEMU PID: " << qemuPid << std::endl;
+    std::cout << "[+] Found QEMU PID: " << qemuPid << std::endl;
 
     // Build the URL
     std::string url = "qemu://hugepage-pid=" + std::to_string(qemuPid) + ",qmp=" + qmpSocket;
-    std::cout << "Launching: ./memprocfs -device " << url << " -mount /mnt/memproc -v" << std::endl;
+    std::cout << "[>] Launching: ./memprocfs -device " << url << " -mount /mnt/memproc -v" << std::endl;
 
     // Fork and execute
     pid_t childPid = fork();
@@ -1262,7 +1262,16 @@ static bool init_memprocfs(const std::string& qmpSocket = "/tmp/qmp-win10-1.sock
         freopen("/dev/null", "w", stdout);
         freopen("/dev/null", "w", stderr);
 
-        execlp("/home/hermes/project/memprocfs/build/Desktop-Debug/memprocfs",
+        static char char_buff[PATH_MAX];
+        static char dir_buffer[PATH_MAX];
+        static char* active_build_directory;
+
+        getcwd(char_buff,sizeof(char_buff));
+        sprintf(dir_buffer, "%s/memprocfs", char_buff);
+
+        active_build_directory = dir_buffer;
+
+        execlp(active_build_directory,
                "memprocfs",
                "-device",
                url.c_str(),
@@ -1284,10 +1293,10 @@ static bool init_memprocfs(const std::string& qmpSocket = "/tmp/qmp-win10-1.sock
 
     // Check if process is still running
     if (kill(childPid, 0) == 0) {
-        std::cout << "memprocfs launched successfully with PID: " << childPid << std::endl;
+        std::cout << "[+] memprocfs launched successfully with PID: " << childPid << std::endl;
         return true;
     } else {
-        std::cerr << "memprocfs terminated during startup" << std::endl;
+        std::cerr << "[!] memprocfs terminated during startup" << std::endl;
         g_memprocPid = -1;
         return false;
     }
@@ -1300,17 +1309,17 @@ static void terminate_memprocfs() {
         return;
     }
 
-    std::cout << "Terminating memprocfs (PID: " << g_memprocPid << ")" << std::endl;
+    std::cout << "[>] Terminating memprocfs (PID: " << g_memprocPid << ")" << std::endl;
 
     // First, try to unmount cleanly
-    std::cout << "Unmounting /mnt/memproc..." << std::endl;
+    std::cout << "[>] Unmounting /mnt/memproc..." << std::endl;
     int umountResult = umount("/mnt/memproc");
     if (umountResult != 0) {
         // Try lazy unmount
         umount2("/mnt/memproc", MNT_DETACH);
-        std::cout << "Used lazy unmount" << std::endl;
+        std::cout << "[+] Used lazy unmount" << std::endl;
     } else {
-        std::cout << "Unmounted successfully" << std::endl;
+        std::cout << "[+] Unmounted successfully" << std::endl;
     }
 
     // Try graceful termination
@@ -1320,7 +1329,7 @@ static void terminate_memprocfs() {
         for (int i = 0; i < 15; i++) {
             pid_t result = waitpid(g_memprocPid, &status, WNOHANG);
             if (result == g_memprocPid) {
-                std::cout << "memprocfs terminated gracefully" << std::endl;
+                std::cout << "[+] memprocfs terminated gracefully" << std::endl;
                 g_memprocPid = -1;
                 return;
             }
@@ -1328,14 +1337,14 @@ static void terminate_memprocfs() {
         }
 
         // If still running, force kill
-        std::cout << "memprocfs didn't respond to SIGTERM, forcing kill..." << std::endl;
+        std::cout << "[!] memprocfs didn't respond to SIGTERM, forcing kill..." << std::endl;
         if (kill(g_memprocPid, SIGKILL) == 0) {
             waitpid(g_memprocPid, &status, 0);
-            std::cout << "memprocfs force killed" << std::endl;
+            std::cout << "[+] memprocfs force killed" << std::endl;
         }
     } else {
         // Process doesn't exist anymore
-        std::cerr << "memprocfs already terminated" << std::endl;
+        std::cerr << "[+] memprocfs already terminated" << std::endl;
     }
 
     // Final cleanup - force unmount if still mounted

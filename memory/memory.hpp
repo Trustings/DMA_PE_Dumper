@@ -24,6 +24,8 @@ typedef union _IMAGE_OPTIONAL_HEADER_WIN_UNION {
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/mount.h>
+#include <dirent.h>
+#include <errno.h>
 #endif
 
 #include <string.h>
