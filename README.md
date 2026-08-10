@@ -1,6 +1,6 @@
 # DMA_PE_Dumper
 
-DMA_PE_Dumper is a DMA capable portable executable dumper that can work over a PCIe FPGA device or on Virtual Machine hugepages. It is currently cross compatible with Linux and Windows.
+DMA_PE_Dumper is a DMA capable portable executable dumper that can work over a PCIe FPGA device or if utilizing a Virtual Machine, shared memory or hugepages. It is currently cross compatible with Linux and Windows.
 
 Currently supports the dumping of both x86 and x64 system drivers, native executables, native executables and their dynamic link libraries. 
 
