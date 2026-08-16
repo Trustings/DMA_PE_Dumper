@@ -62,5 +62,5 @@ EXAMPLE 3 -> ./DMA_PE_Dumper YourTarget.exe YourTarget.dll
 
 # Other Tools: 
 
-For dynamic analysis you can try https://github.com/Trustings/DMA-Memory-Editor
+For dynamic analysis you can use https://github.com/Trustings/DMA-Memory-Editor
 
