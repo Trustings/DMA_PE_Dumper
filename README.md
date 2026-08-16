@@ -6,6 +6,28 @@ Currently supports the dumping of both x86 and x64 system drivers, native execut
 
 <img width="1920" height="1080" alt="Screenshot From 2026-08-10 02-50-00" src="https://github.com/user-attachments/assets/1eb24488-a800-491c-80e8-3a43707518d0" />
 
+# Requirements:
+
+# Linux
+
+You must have these socket connections configured in your qemu configuration.
+
+`-qmp unix:/tmp/qmp-win10.sock,server,nowait`     
+
+`-qmp unix:/tmp/qmp-win10-1.sock,server,nowait`       
+
+
+Please note: To have this run successfully on your Linux machine you must configure your backend as such. https://github.com/ufrisk/LeechCore/wiki/Device_QEMU 
+
+# Windows
+
+Please note: To have this run successfully on your Windows machine you must have first met these requirements at https://github.com/ufrisk/LeechCore/wiki/Device_FPGA and at https://github.com/ufrisk/MemProcFS
+
+# Downloading:
+
+You can download the compiled versions at https://github.com/Trustings/DMA_PE_Dumper/releases/tag/v1.1.0
+
+
 # Building:
 
 # Linux
@@ -19,8 +41,6 @@ make
 ```
 Download the linux project binaries at https://github.com/Trustings/DMA_PE_Dumper/releases/tag/v1.1.0 and have them extracted to your working build directory
 
-Please note: To have this run successfully on your Linux machine you must configure your backend as such. https://github.com/ufrisk/LeechCore/wiki/Device_QEMU 
-
 # Windows 
 
 ```
@@ -29,9 +49,6 @@ git clone --recursive https://github.com/Trustings/DMA_PE_Dumper.git
 After cloning or downloading the repository, open the visual studio solution file (.slnx) and compile as x64 Release.
 
 Download the Windows project binaries at https://github.com/Trustings/DMA_PE_Dumper/releases/tag/v1.1.0 and have them extracted to your working build directory
-
-Please note: To have this run successfully on your Windows machine you must have first met these requirements at https://github.com/ufrisk/LeechCore/wiki/Device_FPGA and at https://github.com/ufrisk/MemProcFS
-
 
 # Examples:
 
